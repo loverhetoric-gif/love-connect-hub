@@ -12,6 +12,8 @@ export * from "./stream.ts";
 export * from "./sync.ts";
 export * from "./api.ts";
 export * from "./ai.ts";
+export * from "./http.ts";
+export * from "./socket.ts";
 
 import { LANES } from "./lanes.ts";
 import type { Envelope } from "./envelope.ts";
