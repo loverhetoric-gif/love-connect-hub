@@ -1,5 +1,12 @@
 # 変更履歴
 
+## 1.3.0（2026-11-10）
+
+- 通信の口を追加：HTTP の受け口・送り口、WebSocket の口。標準の Request／Response／WebSocket だけで、Cloudflare Workers・Node.js・ブラウザで動く。
+- 拒否の理由ごとの HTTP の状態番号を決めた（受け取り済みは届いたとみなす）。
+- Cloudflare Workers の見本（examples/worker.ts）を追加。
+- テストを 75 件に拡充。
+
 ## 1.2.0（2026-11-10）
 
 - 残り4レーンの部品を追加：ストリーミングの並べ直し、同期の版の照合と項目ごとのまとめ、API の再試行、AI の逐次受け取り。
