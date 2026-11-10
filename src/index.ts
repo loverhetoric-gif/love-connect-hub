@@ -7,6 +7,11 @@ export * from "./sender.ts";
 export * from "./receiver.ts";
 export * from "./batch.ts";
 export * from "./media.ts";
+export * from "./seq.ts";
+export * from "./stream.ts";
+export * from "./sync.ts";
+export * from "./api.ts";
+export * from "./ai.ts";
 
 import { LANES } from "./lanes.ts";
 import type { Envelope } from "./envelope.ts";
