@@ -132,7 +132,9 @@ export function checkEnvelope(input: unknown, opts: CheckOptions = {}): CheckRes
   const lane = LANES[o.l];
 
   // 3. 見出しの必須項目
-  if (typeof o.f !== "string" || !FORMAT_RE.test(o.f)) return fail("BAD_FIELD", "f", "形式の名前が正しくありません");
+  if (typeof o.f !== "string" || !FORMAT_RE.test(o.f) || !o.f.startsWith(`${o.l}.`)) {
+    return fail("BAD_FIELD", "f", "形式の名前が正しくありません（レーン名.分類.名前）");
+  }
   if (typeof o.id !== "string" || !MSG_ID_RE.test(o.id)) return fail("BAD_FIELD", "id", "一意の番号が正しくありません");
   if (typeof o.co !== "string" || !ID_RE.test(o.co)) return fail("BAD_FIELD", "co", "会社 ID が正しくありません");
   if (typeof o.by !== "string" || !ID_RE.test(o.by)) return fail("BAD_FIELD", "by", "送り手の ID が正しくありません");

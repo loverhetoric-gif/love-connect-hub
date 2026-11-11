@@ -1,6 +1,6 @@
 {
   "name": "love-connect-hub",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "LOVE rhetoric 共通の HUB 規格（8 レーン）と、その中核部品",
   "type": "module",
   "private": true,

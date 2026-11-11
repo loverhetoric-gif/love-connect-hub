@@ -1,8 +1,19 @@
-// LOVE connect HUB 第1版の入口。外部部品なし。
+// LOVE connect HUB の入口。外部部品なし。
 export * from "./lanes.ts";
 export * from "./envelope.ts";
 export * from "./crypto.ts";
 export * from "./dedupe.ts";
+export * from "./sender.ts";
+export * from "./receiver.ts";
+export * from "./batch.ts";
+export * from "./media.ts";
+export * from "./seq.ts";
+export * from "./stream.ts";
+export * from "./sync.ts";
+export * from "./api.ts";
+export * from "./ai.ts";
+export * from "./http.ts";
+export * from "./socket.ts";
 
 import { LANES } from "./lanes.ts";
 import type { Envelope } from "./envelope.ts";
