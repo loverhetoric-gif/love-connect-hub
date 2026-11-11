@@ -178,7 +178,8 @@ test("WebSocket：1 通ずつ検査して、届いた順に処理する", async 
   const got: number[] = [];
   attachSocket(ws, { receiver, onEnvelope: async (e) => { await new Promise((r) => setTimeout(r, e.sq === 0 ? 5 : 0)); got.push(e.sq!); } });
   for (let i = 0; i < 3; i++) ws.emit("message", { data: JSON.stringify(await sender.make("stream", "stream.audio.opus", { id: seqId("stream-0001", i), sq: i })) });
-  await settle();
+  // 署名の確認と 5 ミリ秒の遅れを 3 通分待つ。決まった時間だけ待つと、混み合った時に間に合わないため、揃うまで待つ（最大 2 秒）
+  for (let waited = 0; got.length < 3 && waited < 2000; waited += 10) await settle();
   assert.deepEqual(got, [0, 1, 2], "前の処理が遅くても順番を守る");
   assert.equal(ws.sent.length, 0);
 });
