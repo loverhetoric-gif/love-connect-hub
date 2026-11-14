@@ -16,6 +16,7 @@ export * from "./http.ts";
 export * from "./socket.ts";
 export * from "./token.ts";
 export * from "./user.ts";
+export * from "./hub.ts";
 
 import { LANES } from "./lanes.ts";
 import type { Envelope } from "./envelope.ts";
