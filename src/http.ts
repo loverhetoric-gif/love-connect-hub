@@ -38,7 +38,8 @@ export const HTTP_STATUS: Readonly<Record<ReceiveCode | "METHOD" | "NOT_FOUND" |
   HANDLER: 500,
 });
 
-const SECURITY_HEADERS: Record<string, string> = {
+/** すべての応答に付ける見出し（利用者の口でも使う） */
+export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
   "x-content-type-options": "nosniff",
