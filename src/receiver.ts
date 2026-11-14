@@ -26,8 +26,11 @@ export interface ReceiverOptions {
   formats: NonNullable<CheckOptions["formats"]>;
   /** 土台の時計（ミリ秒） */
   now: () => number;
-  /** 会社ごとの署名用の鍵。無い会社の署名付き封筒は拒否する */
-  signingKey: (co: string) => CryptoKey | undefined | Promise<CryptoKey | undefined>;
+  /**
+   * 会社ごとの署名用の鍵。無い会社の署名付き封筒は拒否する。
+   * 入れ替えの間は複数を返してよい（どれか 1 つで確かめられれば通す。規格書 第20章）
+   */
+  signingKey: (co: string) => CryptoKey | readonly CryptoKey[] | undefined | Promise<CryptoKey | readonly CryptoKey[] | undefined>;
   /** 重複防止（既定：24 時間・1 万件） */
   dedupe?: Dedupe;
   /** 未来の時刻を許す幅（ミリ秒、既定 60 秒）。時計のずれの分 */
@@ -79,9 +82,17 @@ export function createReceiver(opts: ReceiverOptions): Receiver {
 
       // 4. 署名（付いていれば必ず確かめる。機密以上は必須なので検査済み）
       if (env.sig !== undefined) {
-        const key = await opts.signingKey(env.co);
-        if (!key) return no("NO_KEY", "sig", "この会社の署名用の鍵がありません");
-        if (!(await verifyEnvelope(env, key))) return no("BAD_SIGNATURE", "sig", "署名が一致しません");
+        const got = await opts.signingKey(env.co);
+        const keys = got === undefined ? [] : Array.isArray(got) ? (got as readonly CryptoKey[]) : [got as CryptoKey];
+        if (keys.length === 0) return no("NO_KEY", "sig", "この会社の署名用の鍵がありません");
+        let valid = false;
+        for (const key of keys) {
+          if (await verifyEnvelope(env, key)) {
+            valid = true;
+            break;
+          }
+        }
+        if (!valid) return no("BAD_SIGNATURE", "sig", "署名が一致しません");
       }
 
       // 5. 重複（署名を確かめた後にだけ記録する）
@@ -92,11 +103,23 @@ export function createReceiver(opts: ReceiverOptions): Receiver {
   };
 }
 
-/** 本文を取り出す。暗号化されていれば開いて JSON に戻す */
-export async function readBody(env: Envelope, sealKey?: CryptoKey): Promise<unknown> {
+/**
+ * 本文を取り出す。暗号化されていれば開いて JSON に戻す。
+ * 入れ替えの間は鍵を複数渡してよい（先頭から順に試す。規格書 第20章）
+ */
+export async function readBody(env: Envelope, sealKey?: CryptoKey | readonly CryptoKey[]): Promise<unknown> {
   if (env.e === undefined) return env.b;
-  if (!sealKey) throw new Error("暗号化用の鍵がありません");
-  return JSON.parse(await openBodyText(env, sealKey));
+  const keys = sealKey === undefined ? [] : Array.isArray(sealKey) ? (sealKey as readonly CryptoKey[]) : [sealKey as CryptoKey];
+  if (keys.length === 0) throw new Error("暗号化用の鍵がありません");
+  let last: unknown;
+  for (const key of keys) {
+    try {
+      return JSON.parse(await openBodyText(env, key));
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last instanceof Error ? last : new Error("本文を開けません");
 }
 
 /** レーンごとの許可表を短く書くための補助 */
