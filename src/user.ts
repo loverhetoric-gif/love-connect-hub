@@ -7,7 +7,7 @@
 import { type CheckOptions, type Envelope, type ErrorCode, checkEnvelope } from "./envelope.ts";
 import { type Classification, type LaneName, LANES, isLane } from "./lanes.ts";
 import { SendError, createSender, randomId } from "./sender.ts";
-import { type Dedupe, createDedupe } from "./dedupe.ts";
+import { type AnyDedupe, createDedupe } from "./dedupe.ts";
 import { type TokenClaims, type TokenCode, type TokenVerifier, bearerToken } from "./token.ts";
 import { HTTP_STATUS, SECURITY_HEADERS, readLimited } from "./http.ts";
 import { RAW_MAX_BYTES } from "./receiver.ts";
@@ -95,7 +95,7 @@ export interface UserGatewayOptions {
   /** 会社ごとの暗号化用の鍵。極秘の本文を受け付けるには必須 */
   sealKey?: (co: string) => CryptoKey | undefined | Promise<CryptoKey | undefined>;
   /** 重複防止（既定：24 時間・1 万件）。会社・送り手・番号の組で見る */
-  dedupe?: Dedupe;
+  dedupe?: AnyDedupe;
   /**
    * 正式な封筒にしたあとの処理。返した値は、利用者への返事の本文（b）として返す。
    * 返事は暗号化しない（利用者は暗号化用の鍵を持たないため。通信は https で守る）。
@@ -226,7 +226,7 @@ export function createUserGateway(opts: UserGatewayOptions): (req: Request) => P
     if (!r.ok) return reject(r.code, r.field, r.message);
 
     // 6. 重複（会社・送り手・番号の組。他人の番号で邪魔をさせない）
-    if (!dedupe.first(who.co, `${who.by}\u0000${env.id}`, opts.now())) {
+    if (!(await dedupe.first(who.co, `${who.by}\u0000${env.id}`, opts.now()))) {
       return reject("DUPLICATE", "id", "同じ番号の下書きを受け取り済みです");
     }
 

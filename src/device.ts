@@ -5,7 +5,7 @@
 
 import { type Envelope, type ErrorCode } from "./envelope.ts";
 import { canonicalJson, fromBase64Url, sha256Hex, toBase64Url } from "./crypto.ts";
-import { type Dedupe, createDedupe } from "./dedupe.ts";
+import { type AnyDedupe, createDedupe } from "./dedupe.ts";
 import { type TokenClaims, type TokenCode, type TokenVerifier, bearerToken } from "./token.ts";
 import { SECURITY_HEADERS, readLimited } from "./http.ts";
 import type { UserIdentity } from "./user.ts";
@@ -185,7 +185,7 @@ export interface DeviceVerifierOptions {
   /** 時刻のずれの上限（既定 2 分） */
   skewMs?: number;
   /** 使い捨ての番号の記憶（既定：5 分・10 万件）。台数をまたぐときは Durable Objects などに置く */
-  nonces?: Dedupe;
+  nonces?: AnyDedupe;
 }
 
 /** 端末の確認。利用者の口（createUserGateway の device）に渡す */
@@ -213,7 +213,7 @@ export function createDeviceVerifier(opts: DeviceVerifierOptions): DeviceVerifie
       const msg = deviceProofMessage({ method, path, ts, nonce, tokenHash: await sha256Hex(token), bodyHash: await sha256Hex(body), pub });
       if (!(await verifyDeviceSignature(pub, sig, msg))) return fail("DEVICE_BAD_PROOF", "端末の証明が合いません");
       // 5. 使い捨ての番号（署名が合ったものだけ覚える。他人に番号を潰させない）
-      if (!nonces.first(who.co, `${who.by}\u0000${pub}\u0000${nonce}`, now)) return fail("DEVICE_REPLAY", "同じ証明が使い回されました");
+      if (!(await nonces.first(who.co, `${who.by}\u0000${pub}\u0000${nonce}`, now))) return fail("DEVICE_REPLAY", "同じ証明が使い回されました");
       return { ok: true, pub };
     },
   };
