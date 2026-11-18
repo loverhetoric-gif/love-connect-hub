@@ -46,7 +46,7 @@ export interface PairingStore extends DeviceDirectory {
 }
 
 export type DeviceCode = "DEVICE_MISSING" | "DEVICE_BAD_PROOF" | "DEVICE_CLOCK" | "DEVICE_UNKNOWN" | "DEVICE_REPLAY";
-export type PairCode = "PAIR_BAD_REQUEST" | "PAIR_BAD_PROOF" | "PAIR_CODE";
+export type PairCode = "PAIR_BAD_REQUEST" | "PAIR_BAD_PROOF" | "PAIR_CODE" | "PAIR_ATTEST";
 
 export const DEVICE_HTTP_STATUS: Readonly<Record<DeviceCode | PairCode, number>> = Object.freeze({
   DEVICE_MISSING: 401,
@@ -57,6 +57,7 @@ export const DEVICE_HTTP_STATUS: Readonly<Record<DeviceCode | PairCode, number>>
   PAIR_BAD_REQUEST: 400,
   PAIR_BAD_PROOF: 401,
   PAIR_CODE: 403,
+  PAIR_ATTEST: 403,
 });
 
 const enc = new TextEncoder();
@@ -233,6 +234,11 @@ export interface DeviceEnrollmentOptions {
   /** 入口のパス（既定 /lch/v1/device） */
   path?: string;
   onError?: (info: { error: unknown }) => void;
+  /**
+   * 鍵の証明（規格書 第21章）。渡すと、登録の本文の att（端末の鍵の証明書の鎖など）を確かめ、ok でなければ登録しない。
+   * どの端末・どの種類の鍵に求めるか（例：Android の承認の鍵には必須）は、アプリが決める。Android は verifyAndroidAttestation を使う
+   */
+  attest?: (p: { who: UserIdentity; pub: string; use: DeviceUse; att: unknown }) => Promise<{ ok: true } | { ok: false; code: string; message: string }>;
 }
 
 type EnrollCode = DeviceCode | PairCode | TokenCode | ErrorCode | "USER_FORBIDDEN" | "NOT_FOUND" | "CONTENT_TYPE" | "TOO_LARGE" | "BAD_JSON" | "HANDLER";
@@ -279,10 +285,10 @@ export function createDeviceEnrollment(opts: DeviceEnrollmentOptions): (req: Req
     } catch {
       return refuse("BAD_JSON", "JSON として読めません");
     }
-    if (typeof o !== "object" || o === null || Array.isArray(o) || Object.keys(o).some((k) => !["pub", "use", "code", "sig"].includes(k))) {
+    if (typeof o !== "object" || o === null || Array.isArray(o) || Object.keys(o).some((k) => !["pub", "use", "code", "sig", "att"].includes(k))) {
       return refuse("PAIR_BAD_REQUEST", "登録の形が違います");
     }
-    const { pub, use, code, sig } = o;
+    const { pub, use, code, sig, att } = o;
     if (typeof pub !== "string" || !PUB_RE.test(pub) || (use !== "device" && use !== "approve") || typeof code !== "string" || !CODE_RE.test(code) || typeof sig !== "string") {
       return refuse("PAIR_BAD_REQUEST", "登録の形が違います");
     }
@@ -290,6 +296,17 @@ export function createDeviceEnrollment(opts: DeviceEnrollmentOptions): (req: Req
     const codeHash = await sha256Hex(code);
     if (!(await verifyDeviceSignature(pub, sig, pairingMessage({ co: who.co, by: who.by, use, pub, codeHash })))) {
       return refuse("PAIR_BAD_PROOF", "鍵を持っている証明が合いません");
+    }
+    // 鍵の証明（金庫の部品で作った・生体認証の作り方。合言葉を使う前に）
+    if (opts.attest) {
+      let a: { ok: true } | { ok: false; code: string; message: string };
+      try {
+        a = await opts.attest({ who, pub, use, att });
+      } catch (error) {
+        opts.onError?.({ error });
+        return refuse("HANDLER", "処理中に問題が起きました");
+      }
+      if (!a.ok) return reply(403, { ok: false, code: "PAIR_ATTEST", reason: a.code, message: a.message });
     }
     try {
       if (!(await opts.store.take(who.co, who.by, codeHash, opts.now()))) return refuse("PAIR_CODE", "合言葉が違うか、期限が切れています");

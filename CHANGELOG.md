@@ -1,5 +1,14 @@
 # 変更履歴
 
+## 1.10.0（2026-11-18）
+
+- Android の鍵の証明書（Key Attestation）を確かめる部品を追加（規格書 第21章）。アプリの申告を信じずに、鍵が端末の金庫の部品（TEE・StrongBox）の中で作られ、承認の鍵が使うたびに強い生体認証を求めることを、土台が確かめる（`verifyAndroidAttestation`）。
+  - 証明書の鎖を Google の根（RSA 4096・ECDSA P-384「Key Attestation CA1」。公開鍵の SHA-256 で固定）までたどり、有効期間・取り消し・公開鍵の一致・問いかけ・鍵の性質・起動の検査・作ったアプリを確かめる。外部部品は入れず、Web Crypto と小さな DER の読み取り（`asn1.ts`）だけで書いた
+  - 登録の入口に `attest` を追加。通らなければ `PAIR_ATTEST` で断り、合言葉は使わない
+  - Kotlin 版：鍵を作るときの問いかけ（`attestationChallenge`）と、鍵の証明書の鎖の取り出し（`attestationChain`）。`enroll` は Android Keystore の鍵なら鎖を添える
+- Android の模擬端末（Android 17）で、Kotlin 版が作った本物の鍵の証明書の鎖を TypeScript の部品で読み、鎖の署名・公開鍵・問いかけ・鍵の記述（KeyMint 400）を正しく読めることを確かめた（模擬端末の鍵はソフトウェアの鍵なので、狙いどおり断る）。
+- テスト：TypeScript 115 件、Kotlin 8 件 ＋ 端末の上の試験 1 件。
+
 ## 1.9.0（2026-11-18）
 
 - 台数をまたぐ重複の記憶を追加（規格書 第16章・第2版の計画 A の 1）。受け口・利用者の口の `dedupe` と、端末の確認の `nonces` に、答えを待つ形の記憶（`SharedDedupe`）を渡せるようにした。
