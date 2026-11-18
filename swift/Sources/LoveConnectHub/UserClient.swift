@@ -105,13 +105,17 @@ public final class HubUserClient: Sendable {
     /// 端末を登録する（規格書 第21章）。code は別の画面の QR などで受け取った使い捨ての合言葉。co・by はログインした本人のもの
     public static func enroll(
         url: URL, token: String, device: HubDeviceKey, co: String, by: String, use: String = "device", code: String,
+        attestation: [String: String]? = nil,
         transport: HubTransport = URLSessionTransport()
     ) async -> HubSendResult {
         let host = url.host ?? ""
         guard url.scheme == "https" || ((host == "localhost" || host == "127.0.0.1") && url.scheme == "http") else {
             return .invalid(DraftError(code: "INSECURE_URL", field: "url", message: "送り先は https にしてください"))
         }
-        guard let body = try? JSONSerialization.data(withJSONObject: try hubPairingRequest(key: device, co: co, by: by, use: use, code: code)) else {
+        // 鍵の証明（HubAppAttest.attestation の結果）を添えるときは att に入れる
+        var request: [String: Any] = (try? hubPairingRequest(key: device, co: co, by: by, use: use, code: code)) ?? [:]
+        if let attestation { request["att"] = attestation }
+        guard !request.isEmpty, let body = try? JSONSerialization.data(withJSONObject: request) else {
             return .invalid(DraftError(code: "BAD_JSON", field: "", message: "登録の本文を作れません"))
         }
         var req = URLRequest(url: url)
