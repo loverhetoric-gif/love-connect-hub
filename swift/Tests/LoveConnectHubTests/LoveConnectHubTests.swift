@@ -203,6 +203,12 @@ final class DeviceKeyTests: XCTestCase {
         XCTAssertEqual(b["pub"], key.publicKey)
         XCTAssertEqual(b["sig"]?.count, 86)
     }
+
+    func testAppAttestClientDataHashMatchesTypeScript() {
+        // src/appattest.ts の appAttestClientDataHash と同じ値になること
+        let h = hubAppAttestClientDataHash(co: "CO_A", by: "emp-1", use: "approve", pub: "PUB")
+        XCTAssertEqual(h.map { String(format: "%02x", $0) }.joined(), "92176b126fb96921487fd63660f7a2a4afa7dad8523196c54132533456676cc1")
+    }
 }
 #endif
 

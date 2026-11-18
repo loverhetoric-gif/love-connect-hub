@@ -21,6 +21,10 @@ export * from "./keys.ts";
 export * from "./device.ts";
 export * from "./asn1.ts";
 export * from "./attestation.ts";
+export * from "./appattest.ts";
+export * from "./cbor.ts";
+export * from "./attest-policy.ts";
+export * from "./x509.ts";
 
 import { LANES } from "./lanes.ts";
 import type { Envelope } from "./envelope.ts";

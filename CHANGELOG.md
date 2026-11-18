@@ -1,5 +1,16 @@
 # 変更履歴
 
+## 1.11.0（2026-11-18）
+
+- iPhone・iPad・Mac の App Attest を確かめる部品を追加（規格書 第21章）。Apple の本物の端末の上の、許したアプリが端末の鍵を登録していることを、土台が確かめる（`verifyAppleAppAttest`）。改造したアプリ・偽のアプリ・シミュレーターからの登録は通らない。
+  - 証明書の鎖を Apple App Attestation Root CA（公開鍵の SHA-256 で固定）までたどり、nonce・鍵の ID・アプリ（チーム ID.バンドル ID）・使った回数・本番か開発用かを確かめる。外部部品は入れず、Web Crypto と小さな CBOR の読み取り（`cbor.ts`）だけで書いた
+  - clientDataHash に会社・本人・使い道・端末の公開鍵を入れ、証明を別の登録に使い回せないようにした（`appAttestClientDataHash`）
+  - 鍵の証明の決まり `createAttestationCheck`：Android と Apple を `att.platform` で振り分け、承認の鍵は既定で証明を必須にする
+  - 証明書の読み取りを `x509.ts` に分け、Android と Apple で共通にした
+  - 登録の本文の上限を 4KB から 16KB に広げた（鍵の証明書の鎖・App Attest の証明が 4KB を超えるため）
+  - Swift 版：`HubAppAttest.attestation`（App Attest の鍵を作り、証明を受け取る）、`HubUserClient.enroll` の `attestation`、`hubAppAttestClientDataHash`
+- テスト：TypeScript 123 件、Swift 19 件（2 件は本物の受け口があるときだけ）。
+
 ## 1.10.0（2026-11-18）
 
 - Android の鍵の証明書（Key Attestation）を確かめる部品を追加（規格書 第21章）。アプリの申告を信じずに、鍵が端末の金庫の部品（TEE・StrongBox）の中で作られ、承認の鍵が使うたびに強い生体認証を求めることを、土台が確かめる（`verifyAndroidAttestation`）。

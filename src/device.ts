@@ -277,7 +277,7 @@ export function createDeviceEnrollment(opts: DeviceEnrollmentOptions): (req: Req
       return refuse("HANDLER", "処理中に問題が起きました");
     }
     if (!who || !ID_RE.test(who.co) || !ID_RE.test(who.by)) return refuse("USER_FORBIDDEN", "この利用者は使えません");
-    const raw = await readLimited(req, 4096);
+    const raw = await readLimited(req, 16384);
     if (raw === undefined) return refuse("TOO_LARGE", "受け取れる大きさを超えています");
     let o: Record<string, unknown>;
     try {
