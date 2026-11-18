@@ -31,6 +31,13 @@ class AndroidKeystoreDeviceKey private constructor(val alias: String, val use: S
 
     override val publicKeyRaw: ByteArray get() = uncompressed(entry().certificate.publicKey as ECPublicKey)
 
+    /**
+     * 鍵の証明書の鎖（規格書 第21章）。鍵の証明書が先頭、Google の根が最後。base64url の DER の並び。
+     * 登録の本文の att に { "platform": "android", "chain": [...] } として入れる。土台は verifyAndroidAttestation で確かめる
+     */
+    fun attestationChain(): List<String> =
+        keystore().getCertificateChain(alias)?.map { b64u(it.encoded) } ?: throw IllegalStateException("鍵の証明書がありません")
+
     /** 送るための鍵の署名。承認の鍵は signWithBiometric を使う（生体認証なしでは Keystore が断る） */
     override fun sign(message: ByteArray): ByteArray {
         check(use == "device") { "承認の鍵は signWithBiometric で署名します" }
@@ -90,7 +97,7 @@ class AndroidKeystoreDeviceKey private constructor(val alias: String, val use: S
          * 読み込む。無いときだけ作る。use は device（送るための鍵）か approve（承認の鍵）。
          * 同じ名前の鍵があるのに読めないときは、作り直さずに例外にする
          */
-        fun loadOrCreate(alias: String, use: String): AndroidKeystoreDeviceKey {
+        fun loadOrCreate(alias: String, use: String, attestationChallenge: ByteArray? = null): AndroidKeystoreDeviceKey {
             require(use == "device" || use == "approve") { "use は device か approve です" }
             val ks = keystore()
             if (ks.containsAlias(alias)) {
@@ -98,19 +105,24 @@ class AndroidKeystoreDeviceKey private constructor(val alias: String, val use: S
                 return AndroidKeystoreDeviceKey(alias, use)
             }
             try {
-                generate(alias, use, strongBox = true)
+                generate(alias, use, strongBox = true, attestationChallenge)
             } catch (e: StrongBoxUnavailableException) {
-                generate(alias, use, strongBox = false)
+                generate(alias, use, strongBox = false, attestationChallenge)
             }
             return AndroidKeystoreDeviceKey(alias, use)
         }
 
-        private fun generate(alias: String, use: String, strongBox: Boolean) {
+        /** 鍵の証明書に入れる問いかけ（src/attestation.ts の attestationChallenge と同じ）。会社と本人に結び付ける */
+        fun attestationChallenge(co: String, by: String): ByteArray =
+            java.security.MessageDigest.getInstance("SHA-256").digest("lch-attest-v1\n$co\n$by".toByteArray())
+
+        private fun generate(alias: String, use: String, strongBox: Boolean, challenge: ByteArray?) {
             val spec = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN)
                 .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
                 .setDigests(KeyProperties.DIGEST_SHA256)
                 .setIsStrongBoxBacked(strongBox)
                 .setUnlockedDeviceRequired(true)
+                .apply { if (challenge != null) setAttestationChallenge(challenge) }
                 .apply {
                     if (use == "approve") {
                         // 署名のたびに強い生体認証（0 秒＝毎回）。PIN・パターンでは代われない。登録し直すと使えなくなる

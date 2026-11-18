@@ -132,11 +132,15 @@ class HubUserClient(
          * 端末を登録する（規格書 第21章）。code は別の画面の QR などで受け取った使い捨ての合言葉。co・by はログインした本人のもの。
          * 承認の鍵（use = approve）の登録は、AndroidKeystoreDeviceKey.signWithBiometric で署名した本文を enrollSigned で送る
          */
-        fun enroll(url: String, token: String, device: HubDeviceKey, co: String, by: String, code: String, use: String = "device", transport: HubTransport = UrlConnectionTransport): HubSendResult =
-            enrollSigned(url, token, hubPairingRequest(device, co, by, use, code), device.publicKey, transport)
+        fun enroll(url: String, token: String, device: HubDeviceKey, co: String, by: String, code: String, use: String = "device", transport: HubTransport = UrlConnectionTransport): HubSendResult {
+            val req: MutableMap<String, Any?> = LinkedHashMap(hubPairingRequest(device, co, by, use, code))
+            // Android Keystore の鍵は、鍵の証明書の鎖も送る（土台が金庫の部品で作られたことを確かめる。規格書 第21章）
+            if (device is AndroidKeystoreDeviceKey) req["att"] = linkedMapOf("platform" to "android", "chain" to device.attestationChain())
+            return enrollSigned(url, token, req, device.publicKey, transport)
+        }
 
-        /** 署名済みの登録の本文を送る */
-        fun enrollSigned(url: String, token: String, request: Map<String, String>, pub: String, transport: HubTransport = UrlConnectionTransport): HubSendResult {
+        /** 署名済みの登録の本文を送る（承認の鍵は、signWithBiometric で署名した本文に att を添えて送る） */
+        fun enrollSigned(url: String, token: String, request: Map<String, Any?>, pub: String, transport: HubTransport = UrlConnectionTransport): HubSendResult {
             val target = try { checkedUrl(url) } catch (e: DraftError) { return HubSendResult.Invalid(e) }
             return try {
                 val res = transport.post(target, mapOf("content-type" to "application/json", "authorization" to "Bearer $token"), Json.encode(request).toByteArray(Charsets.UTF_8))

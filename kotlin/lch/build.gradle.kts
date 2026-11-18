@@ -9,6 +9,8 @@ android {
     defaultConfig {
         // 承認の鍵の生体認証（AUTH_BIOMETRIC_STRONG）と BiometricPrompt の認証の種類の指定は Android 11 から
         minSdk = 30
+        // 端末の上の試験（src/androidTest。模擬端末でも動く）
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     testOptions {
         unitTests.all { test ->
@@ -20,4 +22,7 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    // 端末の上の試験の部品（試験だけ。アプリには入らない）
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
