@@ -166,6 +166,46 @@ final class Clock: @unchecked Sendable {
     func advance(_ ms: Int) { lock.withLock { t += ms } }
 }
 
+#if canImport(CryptoKit)
+/// 端末の鍵（規格書 第21章）
+final class DeviceKeyTests: XCTestCase {
+    func testProofHeaderShape() throws {
+        let key = SoftwareDeviceKey()
+        XCTAssertEqual(key.publicKeyRaw.count, 65)
+        XCTAssertEqual(key.publicKeyRaw.first, 0x04)
+        XCTAssertEqual(key.publicKey.count, 87)
+        let h = try hubDeviceProof(key: key, method: "POST", path: "/lch/v1/user", token: "t", body: Data("{}".utf8), now: 1_000)
+        let parts = h.split(separator: ".").map(String.init)
+        XCTAssertEqual(parts.count, 5)
+        XCTAssertEqual(parts[0], "v1")
+        XCTAssertEqual(parts[1], key.publicKey)
+        XCTAssertEqual(parts[2], "1000")
+        XCTAssertEqual(parts[3].count, 22)
+        XCTAssertEqual(parts[4].count, 86)
+        XCTAssertFalse(h.contains("=") || h.contains("+") || h.contains("/"))
+    }
+
+    func testSendsNewProofOnEveryRetry() async throws {
+        let t = FakeTransport([(503, "{}", [:]), (202, #"{"ok":true,"id":"x","at":5}"#, [:])])
+        let c = try HubUserClient(url: hub, token: { _ in "tok" }, device: SoftwareDeviceKey(), transport: t, sleep: { _ in }, random: { 0.5 }, now: { 1_000 })
+        let r = await c.send(Draft(lane: .record, format: "record.attendance.clockin", id: "same-id-01"))
+        guard case .delivered = r else { return XCTFail("\(r)") }
+        let p0 = t.requests[0].value(forHTTPHeaderField: "lch-device"), p1 = t.requests[1].value(forHTTPHeaderField: "lch-device")
+        XCTAssertNotNil(p0)
+        XCTAssertNotEqual(p0, p1, "送り直しでは番号が変わる")
+        XCTAssertEqual(t.body(0)["id"] as? String, t.body(1)["id"] as? String, "下書きの番号は同じ")
+    }
+
+    func testPairingRequestShape() throws {
+        let key = SoftwareDeviceKey()
+        let b = try hubPairingRequest(key: key, co: "CO_A", by: "emp-1", use: "device", code: "c")
+        XCTAssertEqual(Set(b.keys), ["pub", "use", "code", "sig"])
+        XCTAssertEqual(b["pub"], key.publicKey)
+        XCTAssertEqual(b["sig"]?.count, 86)
+    }
+}
+#endif
+
 /// 本物の受け口（TypeScript）との相互の確認。LCH_INTEROP_URL と LCH_INTEROP_TOKEN があるときだけ動く
 final class InteropTests: XCTestCase {
     func testTalksToTypeScriptGateway() async throws {
@@ -193,4 +233,35 @@ final class InteropTests: XCTestCase {
         let r2 = await bad.send(Draft(lane: .record, format: "record.attendance.clockin"))
         XCTAssertEqual(r2, .failed(status: 401, code: "TOKEN_INVALID", attempts: 1))
     }
+
+    #if canImport(CryptoKit)
+    /// 端末の鍵：登録してから、端末の証明つきで送る（本物の受け口が署名を確かめる）
+    func testDeviceKeyWithTypeScriptGateway() async throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let u = env["LCH_INTEROP_URL"], let tok = env["LCH_INTEROP_TOKEN"], let code = env["LCH_INTEROP_CODE"], let base = URL(string: u) else {
+            throw XCTSkip("相互の確認の受け口がありません")
+        }
+        let deviceUrl = base.deletingLastPathComponent().appendingPathComponent("device")
+        let userDevice = base.deletingLastPathComponent().appendingPathComponent("user-device")
+        let key = SoftwareDeviceKey()
+        // 登録していない端末は断られる
+        let before = try HubUserClient(url: userDevice, token: { _ in tok }, device: key)
+        let r0 = await before.send(Draft(lane: .record, format: "record.attendance.clockin"))
+        XCTAssertEqual(r0, .failed(status: 403, code: "DEVICE_UNKNOWN", attempts: 1))
+        // 合言葉で登録する
+        let e = await HubUserClient.enroll(url: deviceUrl, token: tok, device: key, co: "CO_TEST", by: "swift-user", code: code)
+        guard case .delivered = e else { return XCTFail("登録できなかった：\(e)") }
+        // 同じ合言葉の 2 回目は断られる
+        let e2 = await HubUserClient.enroll(url: deviceUrl, token: tok, device: SoftwareDeviceKey(), co: "CO_TEST", by: "swift-user", code: code)
+        XCTAssertEqual(e2, .failed(status: 403, code: "PAIR_CODE", attempts: 1))
+        // 登録した端末から送れる
+        let r1 = await before.send(Draft(lane: .record, format: "record.attendance.clockin", body: ["kind": "in"]))
+        guard case let .delivered(_, _, body, _, _) = r1 else { return XCTFail("届かなかった：\(r1)") }
+        XCTAssertEqual(body, ["echo": ["kind": "in"], "by": "swift-user", "co": "CO_TEST"])
+        // 端末の証明が無ければ、正しいトークンでも断られる
+        let noDevice = try HubUserClient(url: userDevice, token: { _ in tok })
+        let r2 = await noDevice.send(Draft(lane: .record, format: "record.attendance.clockin"))
+        XCTAssertEqual(r2, .failed(status: 401, code: "DEVICE_MISSING", attempts: 1))
+    }
+    #endif
 }

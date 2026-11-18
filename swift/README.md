@@ -18,6 +18,22 @@ let hub = try HubUserClient(url: URL(string: "https://nsc.ns-solution.jp/lch/v1/
 let r = await hub.send(Draft(lane: .record, format: "record.attendance.clockin", body: ["clockInType": "通常"]))
 ```
 
+## 端末の鍵（規格書 第21章）
+
+トークンが盗まれても別の端末から送れないように、端末の中の取り出せない鍵（Secure Enclave）で、送るたびに証明を付ける。
+
+```swift
+// 鍵は本当に無いときだけ作る（参照は保存して持ち越す。作り直すと登録が外れる）
+let key = try SecureEnclaveDeviceKey.create(requireBiometry: false)
+save(key.dataRepresentation)
+// 別の画面の QR で受け取った使い捨ての合言葉で、1 度だけ登録する
+_ = await HubUserClient.enroll(url: deviceURL, token: token, device: key, co: companyId, by: userId, code: code)
+// 以後は端末の鍵つきで送る
+let hub = try HubUserClient(url: userURL, token: { refresh in try await session.accessToken(refresh: refresh) }, device: key)
+```
+
+承認の鍵（`use: "approve"`）は `requireBiometry: true` で作り、署名のたびに Face ID・Touch ID を求める。
+
 ## テスト
 
 ```sh
@@ -28,5 +44,5 @@ cd swift && swift test
 
 ```sh
 node --experimental-strip-types swift/Interop/server.ts   # 表示された url と token を使う
-cd swift && LCH_INTEROP_URL=… LCH_INTEROP_TOKEN=… swift test
+cd swift && LCH_INTEROP_URL=… LCH_INTEROP_TOKEN=… LCH_INTEROP_CODE=… swift test
 ```

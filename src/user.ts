@@ -12,6 +12,7 @@ import { type TokenClaims, type TokenCode, type TokenVerifier, bearerToken } fro
 import { HTTP_STATUS, SECURITY_HEADERS, readLimited } from "./http.ts";
 import { RAW_MAX_BYTES } from "./receiver.ts";
 import { type RetryOptions, withRetry } from "./api.ts";
+import { type DeviceCode, type DeviceSigner, type DeviceVerifier, DEVICE_HEADER, DEVICE_HTTP_STATUS, deviceProofHeader } from "./device.ts";
 
 /** 既定の入口のパス（封筒の入口とは分ける） */
 export const USER_PATH = "/lch/v1/user";
@@ -50,6 +51,7 @@ export interface UserIdentity {
 
 export type UserCode =
   | TokenCode
+  | DeviceCode
   | ErrorCode
   | "USER_FORBIDDEN"
   | "STAMPED_FIELD"
@@ -69,11 +71,12 @@ export const USER_HTTP_STATUS: Readonly<Record<UserCode, number>> = Object.freez
   TOKEN_MISSING: 401,
   TOKEN_INVALID: 401,
   TOKEN_EXPIRED: 401,
+  ...DEVICE_HTTP_STATUS,
   USER_FORBIDDEN: 403,
   STAMPED_FIELD: 400,
   LANE_NOT_ALLOWED: 403,
   SERVER_KEY: 500,
-}) as Readonly<Record<UserCode, number>>;
+}) as unknown as Readonly<Record<UserCode, number>>;
 
 export interface UserGatewayOptions {
   /** トークンの検査（createTokenVerifier で作る） */
@@ -102,6 +105,11 @@ export interface UserGatewayOptions {
   path?: string;
   /** 処理中の失敗を記録する（本文もトークンも渡さない） */
   onError?: (info: { id: string; lane: string; error: unknown }) => void;
+  /**
+   * 端末の確認（規格書 第21章。createDeviceVerifier で作る）。渡すと、すべての下書きに
+   * 登録した端末の鍵の証明（lch-device 見出し）を求める。トークンが盗まれても、別の端末からは送れない
+   */
+  device?: DeviceVerifier;
 }
 
 function json(status: number, body: unknown, extra?: Record<string, string>): Response {
@@ -169,6 +177,13 @@ export function createUserGateway(opts: UserGatewayOptions): (req: Request) => P
     // 3. 長さ → 形
     const raw = await readLimited(req, RAW_MAX_BYTES);
     if (raw === undefined) return reject("TOO_LARGE", "", "受け取れる大きさを超えています");
+
+    // 3a. 端末の証明（トークンと本文に結び付く。本文は中身を読まずにハッシュだけ求める）
+    if (opts.device) {
+      const token = bearerToken(req.headers.get("authorization")) ?? "";
+      const dv = await opts.device.verify({ header: req.headers.get(DEVICE_HEADER), method: req.method, path: url.pathname, token, body: raw, who });
+      if (!dv.ok) return reject(dv.code, DEVICE_HEADER, dv.message);
+    }
     let input: unknown;
     try {
       input = JSON.parse(raw);
@@ -237,6 +252,8 @@ export interface UserClientOptions extends Omit<RetryOptions, "deadlineAt"> {
   token: (refresh: boolean) => Promise<string>;
   /** 通信の関数（既定は標準の fetch） */
   fetch?: (req: Request) => Promise<Response>;
+  /** 端末の鍵（規格書 第21章）。渡すと、送るたびに端末の証明を付ける（送り直しのたびに作り直す） */
+  device?: DeviceSigner;
 }
 
 export type UserSendResult =
@@ -270,9 +287,9 @@ export function createUserClient(opts: UserClientOptions): UserClient {
         async () => {
           for (;;) {
             const token = await opts.token(refreshed);
-            const resp = await doFetch(
-              new Request(u, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body }),
-            );
+            const headers: Record<string, string> = { "content-type": "application/json", authorization: `Bearer ${token}` };
+            if (opts.device) headers[DEVICE_HEADER] = await deviceProofHeader(opts.device, { method: "POST", path: u.pathname, token, body, now: opts.now() });
+            const resp = await doFetch(new Request(u, { method: "POST", headers, body }));
             let data: { ok?: boolean; code?: string; id?: string; at?: number; b?: unknown } = {};
             try {
               data = (await resp.json()) as typeof data;

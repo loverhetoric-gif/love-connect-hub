@@ -1,5 +1,19 @@
 # 変更履歴
 
+## 1.8.0（2026-11-18）
+
+- 端末の鍵を追加（規格書 第21章）。WARPHOLE.（iPhone から Mac を操作するアプリ）の「端末の中の取り出せない鍵」「使い捨ての合言葉によるペアリング」「Face ID による承認」を、利用者の口に取り入れた。第2版の計画 B（DPoP と同じ考え方）の 1 つ目。
+  - 端末の鍵は ECDSA P-256。iPhone・iPad・Mac は Secure Enclave、Web は取り出せない CryptoKey。秘密の部分は端末の外へ出さない。封筒の署名・暗号化には使わない（第18章のとおり）
+  - 端末の登録：ログインのトークン ＋ 別の画面に出した使い捨ての合言葉（5 分・1 回だけ）＋ 鍵を持っている証明（`createDeviceEnrollment`・`issuePairingCode`）
+  - 送るたびの証明（`lch-device` 見出し）：トークン・本文・入口に結び付けた署名。時刻は前後 2 分、使い捨ての番号は 5 分覚える（`createDeviceVerifier`）。利用者の口に `device` を渡すと、トークンを盗まれても別の端末からは送れない
+  - 承認の証明：承認の鍵（署名のたびに生体認証）で封筒の中身に署名する（`signApproval`・`verifyApproval`）。AI や土台は作れない
+  - アプリ側：`createUserClient` の `device`・`createWebDeviceKey`、Swift 版の `SecureEnclaveDeviceKey`・`HubUserClient(device:)`・`HubUserClient.enroll`
+- 生体認証を端末ごとに決めた：iPhone・iPad は Face ID・Touch ID、Mac は Touch ID（Secure Enclave の `.biometryCurrentSet`）、Android はクラス 3（強い）の生体認証（指紋・顔・虹彩。Keystore の `AUTH_BIOMETRIC_STRONG`）。どれも PIN・パスコードでは代われず、登録し直すと承認の鍵は使えなくなる。
+- Kotlin 版（`kotlin/`。Android 11 以上・外部部品なし）を追加：下書き・送り口（Swift 版と同じ動き）・Android Keystore の端末の鍵（StrongBox があればそこ）・`BiometricPrompt` での承認の署名。
+- Swift 版に、Face ID・Touch ID の画面に理由を出す承認の署名（`signWithBiometry`）と、承認の文（`hubApprovalMessage`）を追加。
+- 相互の確認：Swift（CryptoKit）と Kotlin（Java の標準）の端末の鍵の署名を、TypeScript（Web Crypto）の受け口が確かめた。
+- テスト：TypeScript 105 件、Swift 18 件、Kotlin 8 件（相互の確認を含む）。
+
 ## 1.7.0（2026-11-14）
 
 - Swift 版のアプリ側の送り口を追加（`swift/`。iPhone・iPad・Mac 用、外部部品なし）。下書きの検査・同じ番号でのやり直し・期限切れのときだけのトークンの取り直しを、TypeScript 版と同じ動きにした。

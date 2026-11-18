@@ -18,6 +18,7 @@ export * from "./token.ts";
 export * from "./user.ts";
 export * from "./hub.ts";
 export * from "./keys.ts";
+export * from "./device.ts";
 
 import { LANES } from "./lanes.ts";
 import type { Envelope } from "./envelope.ts";
