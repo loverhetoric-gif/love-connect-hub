@@ -28,7 +28,7 @@ const gateway = createUserGateway({
   formats: formatTable({ record: ["record.attendance.clockin"] }),
   now,
   signingKey: () => signingKey,
-  onEnvelope: (env) => (received.push(env), { echo: env.b ?? null, by: env.by, co: env.co }),
+  onEnvelope: (env) => (received.push(env), { echo: env.b ?? null, by: env.by, co: env.co, ...(env.tk ? { tk: env.tk, v: env.v } : {}) }),
 });
 
 // 端末の鍵（規格書 第21章）：登録の入口と、端末の証明を求める利用者の口（/lch/v1/user-device）
@@ -53,7 +53,7 @@ const deviceGateway = createUserGateway({
   signingKey: () => signingKey,
   path: "/lch/v1/user-device",
   device: createDeviceVerifier({ directory: store, now }),
-  onEnvelope: (env) => ({ echo: env.b ?? null, by: env.by, co: env.co }),
+  onEnvelope: (env) => ({ echo: env.b ?? null, by: env.by, co: env.co, ...(env.tk ? { tk: env.tk, v: env.v } : {}) }),
 });
 const pairing = await issuePairingCode(Date.now(), 600_000);
 codes.set(`CO_TEST/swift-user/${pairing.hash}`, pairing.expiresAt);

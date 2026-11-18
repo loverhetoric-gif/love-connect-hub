@@ -3,11 +3,13 @@ import Foundation
 /// 下書き（規格書 第18章）。アプリが送るもの。
 /// 会社（co）・送り手（by）・時刻（at）・署名（sig）・暗号方式（e）は土台が付けるので、この型には無い。
 public struct Draft: Codable, Sendable, Equatable {
-    public var v: Int = specVersion
+    public var v: Int
     public var l: Lane
     public var f: String
     /// 一意の番号。やり直しでも同じ番号を使う（二重の実行を防ぐ）
     public var id: String
+    /// 作業 ID（w- ＋ 英数字 8 文字。規格書 第22章）。ほかの道具・アプリと相互に分け合う
+    public var tk: String?
     public var c: Classification?
     public var dl: Int?
     public var ap: Bool?
@@ -23,8 +25,9 @@ public struct Draft: Codable, Sendable, Equatable {
         lane: Lane, format: String, id: String = newMessageId(), body: JSONValue? = nil,
         classification: Classification? = nil, deadlineMs: Int? = nil, needsApproval: Bool? = nil,
         retentionSec: Int? = nil, seq: Int? = nil, baseVersion: Int? = nil,
-        ref: String? = nil, length: Int? = nil, hash: String? = nil
+        ref: String? = nil, length: Int? = nil, hash: String? = nil, task: String? = nil
     ) {
+        v = specVersion(task: task); tk = task
         l = lane; f = format; self.id = id; b = body
         c = classification; dl = deadlineMs; ap = needsApproval; ret = retentionSec
         sq = seq; bv = baseVersion; self.ref = ref; len = length; h = hash
@@ -57,13 +60,19 @@ private let formatPattern = "[a-z][a-z0-9]*(?:\\.[a-z0-9][a-z0-9_-]*){1,7}"
 private let idPattern = "[A-Za-z0-9_-]{8,64}"
 private let refPattern = "[A-Za-z0-9._~:/?#@!$&'()*+,;=%-]{1,512}"
 private let hashPattern = "[0-9a-f]{64}"
+/// 作業 ID の形（規格書 第22章）
+public let taskIdPattern = "w-[0-9A-Za-z]{8}"
 
 extension Draft {
     /// 送る前の検査。土台でも同じ検査をするが、通らないものは送らずに止める（通信と待ち時間を無駄にしない）
     public func check() -> DraftError? {
         func no(_ code: String, _ field: String, _ msg: String) -> DraftError { DraftError(code: code, field: field, message: msg) }
         let p = l.profile
-        if v != specVersion { return no("BAD_VERSION", "v", "対応していない規格版です") }
+        if !specVersions.contains(v) { return no("BAD_VERSION", "v", "対応していない規格版です") }
+        if let tk {
+            if v < 2 { return no("UNKNOWN_FIELD", "tk", "作業 ID（tk）は第2版の下書きだけに付けられます") }
+            if !whole(tk, taskIdPattern) { return no("BAD_FIELD", "tk", "作業 ID は w- と英数字 8 文字です（例 w-a1B2c3D4）") }
+        }
         if l == .key { return no("LANE_NOT_ALLOWED", "l", "このレーンは利用者の口から使えません") }
         if !whole(f, formatPattern) || !f.hasPrefix("\(l.rawValue).") {
             return no("BAD_FIELD", "f", "形式の名前が正しくありません（レーン名.ハブID.名前）")
