@@ -25,6 +25,7 @@ export * from "./appattest.ts";
 export * from "./cbor.ts";
 export * from "./attest-policy.ts";
 export * from "./x509.ts";
+export * from "./task.ts";
 
 import { LANES } from "./lanes.ts";
 import type { Envelope } from "./envelope.ts";

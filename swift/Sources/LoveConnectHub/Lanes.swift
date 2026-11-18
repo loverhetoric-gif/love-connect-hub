@@ -1,8 +1,12 @@
 // 8 本のレーンの定義。規格書 docs/規格.md の第3章（src/lanes.ts）と同じ値を保つ。
 // 値を変えるのは規格版を上げる変更（第10章）。
 
-/// 規格版
-public let specVersion = 1
+/// いちばん新しい規格版。第2版で作業 ID（tk）を足した（規格書 第22章）
+public let specVersion = 2
+/// 受け付ける規格版
+public let specVersions: Set<Int> = [1, 2]
+/// 作業 ID を運ぶときの規格版。作業 ID の無い下書きは第1版のまま送る（第1版だけの土台にも届くように）
+public func specVersion(task: String?) -> Int { task == nil ? 1 : 2 }
 
 /// 機密度 0:公開 1:社内 2:機密 3:極秘
 public enum Classification: Int, Codable, Sendable, Comparable {

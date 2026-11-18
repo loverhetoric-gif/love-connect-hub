@@ -54,6 +54,17 @@ class DraftTest {
         val id = newMessageId()
         assertTrue(Regex("[A-Za-z0-9_-]{22}").matches(id))
     }
+
+    @Test fun taskIdMakesVersion2AndIsChecked() {
+        // 作業 ID を付けると第2版、付けなければ第1版のまま（規格書 第22章）
+        val plain = Json.parse(Draft(Lane.RECORD, "record.a.b", id = "abcdefgh").toJson()) as Map<*, *>
+        assertEquals(1L, plain["v"]); assertTrue("tk" !in plain.keys)
+        val d = Draft(Lane.RECORD, "record.a.b", id = "abcdefgh", task = "w-Ab12Cd34")
+        assertNull(d.check())
+        val m = Json.parse(d.toJson()) as Map<*, *>
+        assertEquals(2L, m["v"]); assertEquals("w-Ab12Cd34", m["tk"])
+        for (bad in listOf("w-12", "W-Ab12Cd34", "w-Ab12_d34", "w-Ab12Cd345")) assertEquals(bad, "tk", Draft(Lane.RECORD, "record.a.b", task = bad).check()?.field)
+    }
 }
 
 class DeviceKeyTest {
@@ -131,6 +142,10 @@ class InteropTest {
         val r = c.send(Draft(Lane.RECORD, "record.attendance.clockin", body = mapOf("kind" to "in")))
         assertTrue("届かなかった：$r", r is HubSendResult.Delivered)
         assertEquals(mapOf("echo" to mapOf("kind" to "in"), "by" to "swift-user", "co" to "CO_TEST"), (r as HubSendResult.Delivered).body)
+        // 作業 ID を付けた下書きは第2版で届き、作業 ID はそのまま正式な封筒に入る（規格書 第22章）
+        val t = c.send(Draft(Lane.RECORD, "record.attendance.clockin", body = mapOf("kind" to "out"), task = "w-K0tl1nTk"))
+        assertTrue("作業 ID の付いた下書きが届かなかった：$t", t is HubSendResult.Delivered)
+        assertEquals(mapOf("echo" to mapOf("kind" to "out"), "by" to "swift-user", "co" to "CO_TEST", "tk" to "w-K0tl1nTk", "v" to 2L), (t as HubSendResult.Delivered).body)
         assertEquals(HubSendResult.Failed(401, "DEVICE_MISSING", 1), HubUserClient("$root/user-device", { tok }).send(Draft(Lane.RECORD, "record.attendance.clockin")))
     }
 }

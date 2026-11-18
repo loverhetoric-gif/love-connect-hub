@@ -71,6 +71,29 @@ final class DraftTests: XCTestCase {
         }
     }
 
+    func testTaskIdMakesVersion2AndIsChecked() throws {
+        // 作業 ID を付けると第2版、付けなければ第1版のまま（規格書 第22章）
+        let plain = Draft(lane: .record, format: "record.attendance.clockin", id: "clk-00000001")
+        XCTAssertEqual(plain.v, 1)
+        let tagged = Draft(lane: .record, format: "record.attendance.clockin", id: "clk-00000001", task: "w-Ab12Cd34")
+        XCTAssertEqual(tagged.v, 2)
+        XCTAssertNil(tagged.check())
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(tagged)) as! [String: Any]
+        XCTAssertEqual(json["tk"] as? String, "w-Ab12Cd34")
+        XCTAssertEqual(json["v"] as? Int, 2)
+        let plainJson = try JSONSerialization.jsonObject(with: JSONEncoder().encode(plain)) as! [String: Any]
+        XCTAssertNil(plainJson["tk"])
+        XCTAssertEqual(plainJson["v"] as? Int, 1)
+        for bad in ["w-12", "W-Ab12Cd34", "w-Ab12_d34", "w-Ab12Cd345"] {
+            XCTAssertEqual(Draft(lane: .record, format: "record.a.b", task: bad).check()?.field, "tk", bad)
+        }
+        var old = tagged
+        old.v = 1
+        XCTAssertEqual(old.check()?.code, "UNKNOWN_FIELD")
+        old.v = 3
+        XCTAssertEqual(old.check()?.code, "BAD_VERSION")
+    }
+
     func testIdsAreUniqueAndUrlSafe() {
         let ids = (0..<200).map { _ in newMessageId() }
         XCTAssertEqual(Set(ids).count, 200)
@@ -231,6 +254,10 @@ final class InteropTests: XCTestCase {
         // 同じ番号の送り直しは、届いたものとして扱われる
         let again = await c.send(Draft(lane: .record, format: "record.attendance.clockin", id: id, body: ["kind": "in", "minutes": 480]))
         XCTAssertEqual(again, .delivered(id: id, at: nil, body: nil, duplicate: true, attempts: 1))
+        // 作業 ID を付けた下書きは第2版で届き、作業 ID はそのまま正式な封筒に入る（規格書 第22章）
+        let tagged = await c.send(Draft(lane: .record, format: "record.attendance.clockin", body: ["kind": "out"], task: "w-Sw1ftT4k"))
+        guard case let .delivered(_, _, tbody, _, _) = tagged else { return XCTFail("作業 ID の付いた下書きが届かなかった：\(tagged)") }
+        XCTAssertEqual(tbody, ["echo": ["kind": "out"], "by": "swift-user", "co": "CO_TEST", "tk": "w-Sw1ftT4k", "v": 2])
         // 許可表に無い形式は断られる
         let denied = await c.send(Draft(lane: .record, format: "record.attendance.other"))
         XCTAssertEqual(denied, .failed(status: 403, code: "FORMAT_NOT_ALLOWED", attempts: 1))

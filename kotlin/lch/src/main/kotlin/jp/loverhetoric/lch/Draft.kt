@@ -5,7 +5,14 @@ import java.util.Base64
 
 // 8 本のレーンと下書き（規格書 第3章・第18章）。src/lanes.ts・swift/ と同じ値を保つ。
 
-const val SPEC_VERSION = 1
+/** いちばん新しい規格版。第2版で作業 ID（tk）を足した（規格書 第22章） */
+const val SPEC_VERSION = 2
+/** 受け付ける規格版 */
+val SPEC_VERSIONS = setOf(1, 2)
+/** 作業 ID を運ぶときの規格版。作業 ID の無い下書きは第1版のまま送る（第1版だけの土台にも届くように） */
+fun specVersionFor(task: String?): Int = if (task == null) 1 else 2
+/** 作業 ID の形（w- ＋ 英数字 8 文字） */
+val TASK_ID = Regex("w-[0-9A-Za-z]{8}")
 
 /** レーンの性質 */
 data class LaneProfile(val priority: Int, val inlineMax: Int, val deadlineMs: Int, val required: List<String>, val minClass: Int)
@@ -53,11 +60,17 @@ data class Draft(
     val ref: String? = null,
     val length: Long? = null,
     val hash: String? = null,
+    /** 作業 ID（規格書 第22章）。ほかの道具・アプリと相互に分け合う。付けると第2版の下書きになる */
+    val task: String? = null,
 ) {
+    /** 規格版（作業 ID を付けると 2、付けなければ 1） */
+    val version: Int get() = specVersionFor(task)
+
     /** 送る形（JSON の文字）。土台は受け取った文字のまま本文のハッシュを求めるので、送るのはこの文字だけ */
     fun toJson(): String {
         val m = LinkedHashMap<String, Any?>()
-        m["v"] = SPEC_VERSION; m["l"] = lane.wire; m["f"] = format; m["id"] = id
+        m["v"] = version; m["l"] = lane.wire; m["f"] = format; m["id"] = id
+        task?.let { m["tk"] = it }
         classification?.let { m["c"] = it }; deadlineMs?.let { m["dl"] = it }; needsApproval?.let { m["ap"] = it }
         retentionSec?.let { m["ret"] = it }; seq?.let { m["sq"] = it }; baseVersion?.let { m["bv"] = it }
         ref?.let { m["ref"] = it }; length?.let { m["len"] = it }; hash?.let { m["h"] = it }
@@ -69,6 +82,7 @@ data class Draft(
     fun check(): DraftError? {
         val p = lane.profile
         fun no(code: String, field: String, msg: String) = DraftError(code, field, msg)
+        if (task != null && !TASK_ID.matches(task)) return no("BAD_FIELD", "tk", "作業 ID は w- と英数字 8 文字です（例 w-a1B2c3D4）")
         if (lane == Lane.KEY) return no("LANE_NOT_ALLOWED", "l", "このレーンは利用者の口から使えません")
         if (!FORMAT.matches(format) || !format.startsWith("${lane.wire}.")) return no("BAD_FIELD", "f", "形式の名前が正しくありません（レーン名.ハブID.名前）")
         if (!ID.matches(id)) return no("BAD_FIELD", "id", "一意の番号が正しくありません")

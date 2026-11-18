@@ -6,7 +6,8 @@ import {
   HEADER_MAX_BYTES,
   type LaneName,
   LANES,
-  SPEC_VERSION,
+  SPEC_VERSIONS,
+  TASK_ID_RE,
   isLane,
 } from "./lanes.ts";
 
@@ -19,6 +20,8 @@ export interface Envelope {
   f: string;
   /** 一意の番号。重複防止に使う */
   id: string;
+  /** 作業 ID（第2版から。第22章）。ほかの道具・アプリと相互に分け合う */
+  tk?: string;
   /** 会社 ID */
   co: string;
   /** 送り手（利用者・ハブ・機器の ID） */
@@ -82,6 +85,7 @@ export interface CheckOptions {
 const FIELDS: ReadonlySet<string> = new Set([
   "v", "l", "f", "id", "co", "by", "at", "c",
   "dl", "ap", "ret", "sq", "bv", "ref", "len", "h", "e", "b", "sig",
+  "tk",
 ]);
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -127,7 +131,12 @@ export function checkEnvelope(input: unknown, opts: CheckOptions = {}): CheckRes
   }
 
   // 2. 版とレーン
-  if (o.v !== SPEC_VERSION) return fail("BAD_VERSION", "v", "対応していない規格版です");
+  if (typeof o.v !== "number" || !SPEC_VERSIONS.includes(o.v)) return fail("BAD_VERSION", "v", "対応していない規格版です");
+  // 作業 ID は第2版から。第1版の封筒に付いていれば、第1版の受け口と同じく、規格に無い項目として拒否する
+  if (o.tk !== undefined) {
+    if (o.v < 2) return fail("UNKNOWN_FIELD", "tk", "作業 ID（tk）は第2版の封筒だけに付けられます");
+    if (typeof o.tk !== "string" || !TASK_ID_RE.test(o.tk)) return fail("BAD_FIELD", "tk", "作業 ID は w- と英数字 8 文字です（例 w-a1B2c3D4）");
+  }
   if (!isLane(o.l)) return fail("BAD_LANE", "l", "規格に無いレーンです");
   const lane = LANES[o.l];
 

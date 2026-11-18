@@ -49,7 +49,9 @@ test("規格に無い項目は拒否する（__proto__ を含む）", () => {
 });
 
 test("規格版とレーンの検査", () => {
-  assert.equal(code(base({ v: 2 })), "BAD_VERSION");
+  // 第1版・第2版を受け付ける（第10章・第22章）。それ以外は拒否
+  assert.equal(code(base({ v: 2 })), "OK");
+  for (const v of [0, 3, "1", 1.5, null]) assert.equal(code(base({ v })), "BAD_VERSION", String(v));
   assert.equal(code(base({ l: "video" })), "BAD_LANE");
   assert.equal(code(base({ l: "toString" })), "BAD_LANE");
 });

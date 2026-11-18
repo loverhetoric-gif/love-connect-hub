@@ -1,7 +1,16 @@
 // 8 本のレーンの定義。規格書 docs/規格.md の第3章と同じ内容を保つ。
 // 値を変えるのは規格版を上げる変更（第10章）。
 
-export const SPEC_VERSION = 1;
+/** いちばん新しい規格版。第2版で作業 ID（tk）を足した（第22章） */
+export const SPEC_VERSION = 2;
+/** 受け付ける規格版。第1版の封筒（作業 ID なし）も、これまでどおり受け付ける */
+export const SPEC_VERSIONS: readonly number[] = [1, 2];
+/** 作業 ID（第22章）：w- ＋ 英数字 8 文字。道具・アプリのあいだで相互に分け合う */
+export const TASK_ID_RE = /^w-[0-9A-Za-z]{8}$/;
+/** 作業 ID を運ぶときの規格版。作業 ID の無い封筒は第1版のまま送る（第1版だけの受け口にも届くように） */
+export function versionFor(tk: string | undefined): number {
+  return tk === undefined ? 1 : 2;
+}
 
 export type LaneName =
   | "key"

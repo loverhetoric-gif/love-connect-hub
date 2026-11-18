@@ -5,7 +5,7 @@
 // 送り手（by）と会社（co）は、アプリの申告ではなく、確かめたトークンからだけ決まる。
 
 import { type CheckOptions, type Envelope, type ErrorCode, checkEnvelope } from "./envelope.ts";
-import { type Classification, type LaneName, LANES, isLane } from "./lanes.ts";
+import { type Classification, type LaneName, LANES, SPEC_VERSIONS, TASK_ID_RE, isLane, versionFor } from "./lanes.ts";
 import { SendError, createSender, randomId } from "./sender.ts";
 import { type AnyDedupe, createDedupe } from "./dedupe.ts";
 import { type TokenClaims, type TokenCode, type TokenVerifier, bearerToken } from "./token.ts";
@@ -18,7 +18,7 @@ import { type DeviceCode, type DeviceSigner, type DeviceVerifier, DEVICE_HEADER,
 export const USER_PATH = "/lch/v1/user";
 
 /** 下書きに書いてよい項目。会社・送り手・時刻・署名・暗号方式は土台だけが付ける */
-const DRAFT_FIELDS: ReadonlySet<string> = new Set(["v", "l", "f", "id", "c", "dl", "ap", "ret", "sq", "bv", "ref", "len", "h", "b"]);
+const DRAFT_FIELDS: ReadonlySet<string> = new Set(["v", "l", "f", "id", "tk", "c", "dl", "ap", "ret", "sq", "bv", "ref", "len", "h", "b"]);
 const STAMPED_FIELDS: ReadonlySet<string> = new Set(["co", "by", "at", "sig", "e"]);
 
 /** 利用者の口から受け付けないレーン。鍵は利用者から直接は扱わせない（固定） */
@@ -31,6 +31,8 @@ export interface Draft {
   f: string;
   /** 一意の番号。やり直しでも同じ番号を使う（二重の実行を防ぐ） */
   id: string;
+  /** 作業 ID（第2版から。第22章） */
+  tk?: string;
   c?: Classification;
   dl?: number;
   ap?: boolean;
@@ -138,7 +140,11 @@ export function checkDraft(input: unknown):
     if (!DRAFT_FIELDS.has(k)) return { ok: false, code: "UNKNOWN_FIELD", field: k, message: `規格に無い項目です：${k}` };
   }
   const o = input as Record<string, unknown>;
-  if (o.v !== 1) return { ok: false, code: "BAD_VERSION", field: "v", message: "対応していない規格版です" };
+  if (typeof o.v !== "number" || !SPEC_VERSIONS.includes(o.v)) return { ok: false, code: "BAD_VERSION", field: "v", message: "対応していない規格版です" };
+  if (o.tk !== undefined) {
+    if (o.v < 2) return { ok: false, code: "UNKNOWN_FIELD", field: "tk", message: "作業 ID（tk）は第2版の下書きだけに付けられます" };
+    if (typeof o.tk !== "string" || !TASK_ID_RE.test(o.tk)) return { ok: false, code: "BAD_FIELD", field: "tk", message: "作業 ID は w- と英数字 8 文字です（例 w-a1B2c3D4）" };
+  }
   if (o.c !== undefined && !(o.c === 0 || o.c === 1 || o.c === 2 || o.c === 3)) {
     return { ok: false, code: "BAD_FIELD", field: "c", message: "機密度は 0〜3 です" };
   }
@@ -277,7 +283,7 @@ export function createUserClient(opts: UserClientOptions): UserClient {
 
   return {
     async send(input) {
-      const draft: Draft = { v: 1, ...input, id: input.id ?? randomId() } as Draft;
+      const draft: Draft = { v: versionFor(input.tk), ...input, id: input.id ?? randomId() } as Draft;
       const body = JSON.stringify(draft);
       const dl = draft.dl ?? LANES[draft.l].deadlineMs;
       const start = opts.now();

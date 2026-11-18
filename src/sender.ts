@@ -3,7 +3,7 @@
 // 自分で検査を通す。規格に合わない封筒は送る前に止める。
 
 import { type Envelope, checkEnvelope } from "./envelope.ts";
-import { type Classification, type LaneName, LANES, SPEC_VERSION } from "./lanes.ts";
+import { type Classification, type LaneName, LANES, versionFor } from "./lanes.ts";
 import { sealBody, signEnvelope, toBase64Url } from "./crypto.ts";
 
 export interface SenderOptions {
@@ -35,6 +35,8 @@ export interface SendInput {
   bv?: number;
   /** 番号を自分で決めるとき（分割の送信など） */
   id?: string;
+  /** 作業 ID（第22章）。付けると第2版の封筒になる。付けなければ第1版のまま */
+  tk?: string;
 }
 
 export class SendError extends Error {
@@ -62,8 +64,8 @@ export function createSender(opts: SenderOptions): Sender {
   return {
     async make(lane, f, input = {}) {
       const c = input.c ?? LANES[lane].minClass;
-      let env: Envelope = { v: SPEC_VERSION, l: lane, f, id: input.id ?? newId(), co: opts.co, by: opts.by, at: opts.now(), c };
-      for (const k of ["dl", "ap", "ret", "sq", "bv", "ref", "len", "h"] as const) {
+      let env: Envelope = { v: versionFor(input.tk), l: lane, f, id: input.id ?? newId(), co: opts.co, by: opts.by, at: opts.now(), c };
+      for (const k of ["tk", "dl", "ap", "ret", "sq", "bv", "ref", "len", "h"] as const) {
         if (input[k] !== undefined) (env as unknown as Record<string, unknown>)[k] = input[k];
       }
       if (input.b !== undefined) {
