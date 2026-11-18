@@ -5,7 +5,7 @@
 import { type CheckOptions, type Envelope, type ErrorCode, checkEnvelope, isExpired } from "./envelope.ts";
 import { HEADER_MAX_BYTES, LANES, type LaneName } from "./lanes.ts";
 import { openBodyText, verifyEnvelope } from "./crypto.ts";
-import { type Dedupe, createDedupe } from "./dedupe.ts";
+import { type AnyDedupe, createDedupe } from "./dedupe.ts";
 
 export type ReceiveCode =
   | ErrorCode
@@ -31,8 +31,8 @@ export interface ReceiverOptions {
    * 入れ替えの間は複数を返してよい（どれか 1 つで確かめられれば通す。規格書 第20章）
    */
   signingKey: (co: string) => CryptoKey | readonly CryptoKey[] | undefined | Promise<CryptoKey | readonly CryptoKey[] | undefined>;
-  /** 重複防止（既定：24 時間・1 万件） */
-  dedupe?: Dedupe;
+  /** 重複防止（既定：24 時間・1 万件。台数をまたぐときは Durable Objects などの記憶を渡す） */
+  dedupe?: AnyDedupe;
   /** 未来の時刻を許す幅（ミリ秒、既定 60 秒）。時計のずれの分 */
   skewMs?: number;
 }
@@ -96,7 +96,7 @@ export function createReceiver(opts: ReceiverOptions): Receiver {
       }
 
       // 5. 重複（署名を確かめた後にだけ記録する）
-      if (!dedupe.first(env.co, env.id, now)) return no("DUPLICATE", "id", "同じ番号の封筒を受け取り済みです");
+      if (!(await dedupe.first(env.co, env.id, now))) return no("DUPLICATE", "id", "同じ番号の封筒を受け取り済みです");
 
       return { ok: true, env };
     },

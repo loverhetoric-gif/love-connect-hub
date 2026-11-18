@@ -41,7 +41,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const key = await signingKey(env);
     // 受け口は Workers の 1 つの実行の間だけ使う（重複防止の記憶も、その間だけ）。
-    // 複数の実行をまたいで重複を防ぐには、Durable Objects などに記憶を置く（規格書 第16章）。
+    // 複数の実行・台数をまたいで重複を防ぐには、adapters/cloudflare/dedupe.ts の createDurableDedupe を dedupe に渡す（規格書 第16章）。
     const receiver = createReceiver({
       formats: FORMATS,
       now: () => Date.now(),
