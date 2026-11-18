@@ -1,0 +1,41 @@
+{
+  "note": "第23章の相互の確認（TypeScript が署名した連絡を、Swift・Kotlin が確かめる）。tools では作り直さない（署名は毎回変わる）",
+  "room": "room-vector01",
+  "me": "BM27r2HyytNA2NfQu68iW7mqAminmnPmK__m9HdbGoIuNmMKGJXBXcckrHdOPi5MisA5e0_wChnhFLUX8rwOjOU",
+  "now": 1795003200000,
+  "offer": {
+    "v": 1,
+    "t": "offer",
+    "room": "room-vector01",
+    "from": "BIB4ZslEHmf95rJeYRcTWNwGKcxfoFCVC_FYI4IkcKGsDWvsatd_87GQ-bHVYDcroRzs_GJyb43BBm1ttJVhoYQ",
+    "to": "BM27r2HyytNA2NfQu68iW7mqAminmnPmK__m9HdbGoIuNmMKGJXBXcckrHdOPi5MisA5e0_wChnhFLUX8rwOjOU",
+    "ts": 1795003200000,
+    "n": "rEcEMKmCyl3etutvJjcmig",
+    "b": {
+      "sid": "sid-vector01",
+      "sdp": "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=fingerprint:sha-256 00:01:02:03:04:05:06:07:08:09:0A:0B:0C:0D:0E:0F:10:11:12:13:14:15:16:17:18:19:1A:1B:1C:1D:1E:1F\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=rtpmap:96 VP8/90000\r\na=x-test:\"引用\" \\ \t\u0001日本語\r\n"
+    },
+    "sig": "-3oz_XQAMkvIW6Ugc-ouqdH8cndnkPowVRAMYyC5gZEYuJCj4MdfbiUqQUu5aWXBBsmLqz5rqlaFn2ZL3fX1_w"
+  },
+  "offerSignedText": "lch-rtc-v1\n{\"b\":{\"sdp\":\"v=0\\r\\no=- 1 2 IN IP4 127.0.0.1\\r\\ns=-\\r\\nt=0 0\\r\\na=fingerprint:sha-256 00:01:02:03:04:05:06:07:08:09:0A:0B:0C:0D:0E:0F:10:11:12:13:14:15:16:17:18:19:1A:1B:1C:1D:1E:1F\\r\\nm=video 9 UDP/TLS/RTP/SAVPF 96\\r\\na=rtpmap:96 VP8/90000\\r\\na=x-test:\\\"引用\\\" \\\\ \\t\\u0001日本語\\r\\n\",\"sid\":\"sid-vector01\"},\"from\":\"BIB4ZslEHmf95rJeYRcTWNwGKcxfoFCVC_FYI4IkcKGsDWvsatd_87GQ-bHVYDcroRzs_GJyb43BBm1ttJVhoYQ\",\"n\":\"rEcEMKmCyl3etutvJjcmig\",\"room\":\"room-vector01\",\"t\":\"offer\",\"to\":\"BM27r2HyytNA2NfQu68iW7mqAminmnPmK__m9HdbGoIuNmMKGJXBXcckrHdOPi5MisA5e0_wChnhFLUX8rwOjOU\",\"ts\":1795003200000,\"v\":1}",
+  "grant": {
+    "v": 1,
+    "t": "grant",
+    "room": "room-vector01",
+    "from": "BLs1k0J80w-44ICg8RoqIOHzU9KgOVyrjsnhRULW7BSSX4FakcpOFtOP88Z0gm2QNRFVi2nqFVkPk4R1Dg3-NjI",
+    "to": "BDOAjFi84CHeFEhQDRec4xEuxomsbMwLz5rr27rwXMJvcWPTE_ALGe-TE8341JqP3gMOJKT7rN-1FWIfs352kiQ",
+    "ts": 1795003200000,
+    "n": "vzyUInpkwrJM6mUoUp89_Q",
+    "b": {
+      "sid": "sid-vector01",
+      "scope": "point",
+      "until": 1795003800000
+    },
+    "sig": "C782WhWRnkcdsGI3Kbi4ViQYzkay7X4H1gQ95Wvy-VMTp4guDWWLQQr0A1QbV3959BxYbns6H3lUSvWD091zVQ"
+  },
+  "grantSignedText": "lch-rtc-v1\n{\"b\":{\"scope\":\"point\",\"sid\":\"sid-vector01\",\"until\":1795003800000},\"from\":\"BLs1k0J80w-44ICg8RoqIOHzU9KgOVyrjsnhRULW7BSSX4FakcpOFtOP88Z0gm2QNRFVi2nqFVkPk4R1Dg3-NjI\",\"n\":\"vzyUInpkwrJM6mUoUp89_Q\",\"room\":\"room-vector01\",\"t\":\"grant\",\"to\":\"BDOAjFi84CHeFEhQDRec4xEuxomsbMwLz5rr27rwXMJvcWPTE_ALGe-TE8341JqP3gMOJKT7rN-1FWIfs352kiQ\",\"ts\":1795003200000,\"v\":1}",
+  "approverKeys": [
+    "BLs1k0J80w-44ICg8RoqIOHzU9KgOVyrjsnhRULW7BSSX4FakcpOFtOP88Z0gm2QNRFVi2nqFVkPk4R1Dg3-NjI"
+  ],
+  "supporter": "BDOAjFi84CHeFEhQDRec4xEuxomsbMwLz5rr27rwXMJvcWPTE_ALGe-TE8341JqP3gMOJKT7rN-1FWIfs352kiQ"
+}
