@@ -64,6 +64,8 @@ public final class HubUserClient: Sendable {
     private let sleep: @Sendable (Int) async -> Void
     private let random: @Sendable () -> Double
     private let now: @Sendable () -> Int
+    /// 送るたびの証明を作る（端末の鍵を渡したときだけ。規格書 第21章）
+    private let proof: (@Sendable (_ token: String, _ body: Data, _ now: Int) throws -> String)?
 
     public init(
         url: URL, token: @escaping TokenProvider, transport: HubTransport = URLSessionTransport(), retry: RetryPolicy = RetryPolicy(),
@@ -78,7 +80,55 @@ public final class HubUserClient: Sendable {
         }
         self.url = url; self.token = token; self.transport = transport; self.retry = retry
         self.sleep = sleep; self.random = random; self.now = now
+        self.proof = nil
     }
+
+    #if canImport(CryptoKit)
+    /// 端末の鍵つき（規格書 第21章）。送るたびに、トークンと本文に結び付いた端末の証明（lch-device）を付ける
+    public init(
+        url: URL, token: @escaping TokenProvider, device: HubDeviceKey, transport: HubTransport = URLSessionTransport(), retry: RetryPolicy = RetryPolicy(),
+        sleep: @escaping @Sendable (Int) async -> Void = { ms in try? await Task.sleep(nanoseconds: UInt64(ms) * 1_000_000) },
+        random: @escaping @Sendable () -> Double = { Double.random(in: 0..<1) },
+        now: @escaping @Sendable () -> Int = { Int(Date().timeIntervalSince1970 * 1000) }
+    ) throws {
+        let host = url.host ?? ""
+        let local = host == "localhost" || host == "127.0.0.1"
+        guard url.scheme == "https" || (local && url.scheme == "http") else {
+            throw DraftError(code: "INSECURE_URL", field: "url", message: "送り先は https にしてください")
+        }
+        self.url = url; self.token = token; self.transport = transport; self.retry = retry
+        self.sleep = sleep; self.random = random; self.now = now
+        let path = url.path
+        self.proof = { token, body, now in try hubDeviceProof(key: device, method: "POST", path: path, token: token, body: body, now: now) }
+    }
+
+    /// 端末を登録する（規格書 第21章）。code は別の画面の QR などで受け取った使い捨ての合言葉。co・by はログインした本人のもの
+    public static func enroll(
+        url: URL, token: String, device: HubDeviceKey, co: String, by: String, use: String = "device", code: String,
+        transport: HubTransport = URLSessionTransport()
+    ) async -> HubSendResult {
+        let host = url.host ?? ""
+        guard url.scheme == "https" || ((host == "localhost" || host == "127.0.0.1") && url.scheme == "http") else {
+            return .invalid(DraftError(code: "INSECURE_URL", field: "url", message: "送り先は https にしてください"))
+        }
+        guard let body = try? JSONSerialization.data(withJSONObject: try hubPairingRequest(key: device, co: co, by: by, use: use, code: code)) else {
+            return .invalid(DraftError(code: "BAD_JSON", field: "", message: "登録の本文を作れません"))
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "content-type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+        req.httpBody = body
+        do {
+            let (data, res) = try await transport.post(req)
+            let reply = (try? JSONDecoder().decode(Reply.self, from: data)) ?? Reply()
+            if (200...299).contains(res.statusCode) { return .delivered(id: device.publicKey, at: nil, body: nil, duplicate: false, attempts: 1) }
+            return .failed(status: res.statusCode, code: reply.code, attempts: 1)
+        } catch {
+            return .failed(status: 0, code: nil, attempts: 1)
+        }
+    }
+    #endif
 
     public func send(_ draft: Draft) async -> HubSendResult {
         if let e = draft.check() { return .invalid(e) }
@@ -104,7 +154,10 @@ public final class HubUserClient: Sendable {
                     var req = URLRequest(url: url)
                     req.httpMethod = "POST"
                     req.setValue("application/json", forHTTPHeaderField: "content-type")
-                    req.setValue("Bearer \(try await token(refreshed))", forHTTPHeaderField: "authorization")
+                    let tok = try await token(refreshed)
+                    req.setValue("Bearer \(tok)", forHTTPHeaderField: "authorization")
+                    // 端末の証明は、送り直しのたびに新しい時刻・番号で作り直す（下書きの番号は同じ）
+                    if let proof { req.setValue(try proof(tok, body, now()), forHTTPHeaderField: "lch-device") }
                     req.httpBody = body
                     let (data, res) = try await transport.post(req)
                     status = res.statusCode
