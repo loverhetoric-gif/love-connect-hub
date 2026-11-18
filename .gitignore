@@ -3,3 +3,7 @@ node_modules/
 .env*
 swift/.build/
 swift/.swiftpm/
+kotlin/.gradle/
+kotlin/**/build/
+kotlin/local.properties
+kotlin/.kotlin/

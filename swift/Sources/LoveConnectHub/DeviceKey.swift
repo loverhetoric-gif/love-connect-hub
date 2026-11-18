@@ -54,6 +54,22 @@ public struct SecureEnclaveDeviceKey: HubDeviceKey, @unchecked Sendable {
 
     public func sign(_ message: Data) throws -> Data { try key.signature(for: message).rawRepresentation }
 
+    #if canImport(LocalAuthentication)
+    /// 承認の鍵の署名。Face ID・Touch ID の画面に reason を出してから署名する（iPhone・iPad は Face ID か Touch ID、Mac は Touch ID）
+    public func signWithBiometry(_ message: Data, reason: String) throws -> Data {
+        let context = LAContext()
+        context.localizedReason = reason
+        let k = try SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: key.dataRepresentation, authenticationContext: context)
+        return try k.signature(for: message).rawRepresentation
+    }
+
+    /// この端末で、承認の鍵に使える生体認証（Face ID・Touch ID・Optic ID）が登録されているか
+    public static var canUseBiometry: Bool {
+        var error: NSError?
+        return LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+    }
+    #endif
+
     /// この端末で使えるか（Secure Enclave の無い端末・シミュレーターでは使えない）
     public static var isAvailable: Bool { SecureEnclave.isAvailable }
 }
@@ -75,6 +91,12 @@ public func hubDeviceProof(key: HubDeviceKey, method: String, path: String, toke
     let nonce = b64u(n)
     let msg = ["lch-device-v1", method.uppercased(), path, String(now), nonce, sha256Hex(Data(token.utf8)), sha256Hex(body), key.publicKey].joined(separator: "\n")
     return "v1.\(key.publicKey).\(now).\(nonce).\(b64u(try key.sign(Data(msg.utf8))))"
+}
+
+/// 承認の文（src/device.ts の approvalMessage と同じ）。canonicalEnvelopeHash は、封筒（sig を除く）の正規化 JSON の SHA-256（16 進）。
+/// 承認する封筒は土台から受け取り、画面に中身を見せたうえで、承認の鍵（signWithBiometry）で署名する
+public func hubApprovalMessage(co: String, envelopeId: String, canonicalEnvelopeHash: String, ts: Int) -> Data {
+    Data(["lch-approve-v1", co, envelopeId, canonicalEnvelopeHash, String(ts)].joined(separator: "\n").utf8)
 }
 
 /// 登録の本文（code は別の画面の QR などで受け取った使い捨ての合言葉）。src/device.ts の pairingRequest と同じ
