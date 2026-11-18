@@ -238,3 +238,14 @@ test("Cloudflare の部屋への受け渡し：本人の見出しは入口が付
   const badRoom = await rtcRoomRequest({ request: req, namespace: ns, room: "short", purpose: "meeting", who: { co: "CO_A", by: "e", pub: a.pub } });
   assert.equal(badRoom.status, 400);
 });
+
+test("相互の確認の見本（test/vectors/rtc.json）：TypeScript が署名した連絡が、今の決まりで通る（Swift・Kotlin も同じ見本を確かめる）", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { rtcSignedText } = await import("../src/index.ts");
+  const v = JSON.parse(readFileSync(new URL("./vectors/rtc.json", import.meta.url), "utf8"));
+  assert.equal(rtcSignedText(v.offer), v.offerSignedText);
+  const r = await createRtcVerifier({ me: v.me, room: v.room, now: () => v.now }).verify(v.offer);
+  assert.equal(r.ok, true);
+  const g = await verifyControlGrant({ grant: v.grant, approverKeys: v.approverKeys, supporter: v.supporter, sid: "sid-vector01", now: v.now + 1000 });
+  assert.deepEqual(g, { ok: true, scope: "point", until: v.now + 600_000 });
+});
