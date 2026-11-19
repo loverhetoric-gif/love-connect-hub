@@ -8,6 +8,8 @@ LOVE rhetoric 共通の HUB 規格。どんな種類のデータでも、8 本�
 
 ## 8 本のレーン
 
+レーンごとの版と更新履歴は [`lanes.json`](lanes.json)（変更履歴の「対象のレーン」から `npm run lanes` で作る。Rhetoric Studio が読む）。
+
 | レーン | 流れるもの |
 |---|---|
 | 鍵 `key` | API キー・トークン・本人確認（値は流さず、置き場所だけ） |
